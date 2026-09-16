@@ -273,7 +273,6 @@ class InternalFGOrder(Base):
     extra_data = Column(JSON, nullable=True)
     created_date = Column(DateTime, server_default=func.now())
     updated_date = Column(DateTime, onupdate=func.now())
-    extra_data = Column(JSON, nullable=True)
     parent_order = Column(String(50), nullable=True)
     created_by = Column(String(100), nullable=True)
     
