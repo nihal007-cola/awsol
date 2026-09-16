@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 
 router = APIRouter(prefix="/utils", tags=["Utilities"])
 
@@ -37,7 +39,7 @@ def debug_fg_status(fg_key: str, db: Session = Depends(get_db)):
         return {'error': str(e), 'fgKey': fg_key}
 
 @router.post("/cancel/stage")
-def cancel_stage(data: Dict, db: Session = Depends(get_db)):
+def cancel_stage(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Thin router. Delegates to the per-stage cancel endpoints, which own the
     token movement and the snapshot reversal. This endpoint no longer writes
     ledger or snapshot rows itself (that was a token-less bypass that could
@@ -148,7 +150,7 @@ def can_cancel_stage(db: Session, fg_key: str, target_stage: str) -> Dict:
     return {'canCancel': True, 'reason': 'Can cancel'}
 
 @router.post("/cancel/order")
-def cancel_whole_order(data: Dict, db: Session = Depends(get_db)):
+def cancel_whole_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Cancel an entire order (all FGs)"""
     try:
         fg_order_serial = crud.clean_key_exact(data.get('fgOrderSerial', ''))
@@ -270,7 +272,7 @@ def get_settings():
 # ==============================================================
 
 @router.post("/cancel/fg")
-def cancel_entire_fg(data: Dict, db: Session = Depends(get_db)):
+def cancel_entire_fg(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Cancel an FG ONLY if it's still in BOM stage.
     Cancellation is blocked if downstream records exist.
@@ -435,7 +437,7 @@ def get_uoms(db: Session = Depends(get_db)):
         return ["PCS", "MTR", "KG", "CONE", "SET", "ROLL"]
 
 @router.post("/uoms")
-def add_uom(data: Dict, db: Session = Depends(get_db)):
+def add_uom(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Add a new UOM"""
     from ..models import Settings
     import json
@@ -465,42 +467,5 @@ def add_uom(data: Dict, db: Session = Depends(get_db)):
         )
         db.add(uom_setting)
     
-    db.commit()
-    return {"success": True, "message": f"UOM '{uom}' added successfully", "uom": uom}
-@router.get("/uoms")
-def get_uoms(db: Session = Depends(get_db)):
-    from ..models import Settings
-    import json
-    uom_setting = db.query(Settings).filter(Settings.config_key == "uom_list").first()
-    if not uom_setting:
-        return ["PCS", "MTR", "KG", "CONE", "SET", "ROLL"]
-    try:
-        return json.loads(uom_setting.config_value)
-    except:
-        return ["PCS", "MTR", "KG", "CONE", "SET", "ROLL"]
-
-@router.post("/uoms")
-def add_uom(data: Dict, db: Session = Depends(get_db)):
-    from ..models import Settings
-    import json
-    uom = data.get('uom', '').strip().upper()
-    if not uom:
-        return {"success": False, "message": "UOM is required"}
-    uom_setting = db.query(Settings).filter(Settings.config_key == "uom_list").first()
-    if uom_setting:
-        try:
-            uoms = json.loads(uom_setting.config_value)
-        except:
-            uoms = ["PCS", "MTR", "KG", "CONE", "SET", "ROLL"]
-        if uom in uoms:
-            return {"success": False, "message": f"UOM '{uom}' already exists"}
-        uoms.append(uom)
-        uom_setting.config_value = json.dumps(uoms)
-        uom_setting.updated_at = datetime.utcnow()
-    else:
-        default_uoms = ["PCS", "MTR", "KG", "CONE", "SET", "ROLL"]
-        default_uoms.append(uom)
-        uom_setting = Settings(config_key="uom_list", config_value=json.dumps(default_uoms), description="List of UOMs for RM items")
-        db.add(uom_setting)
     db.commit()
     return {"success": True, "message": f"UOM '{uom}' added successfully", "uom": uom}
