@@ -223,41 +223,44 @@ def get_current_workflow_position(db: Session, fg_key: str):
 # ==================== INVENTORY SNAPSHOT ====================
 
 def update_inventory_snapshot(db: Session, updates: List[Dict]):
-    """Update inventory snapshot with the given updates"""
+    """Apply a batch of deltas to the inventory snapshot.
+
+    Concurrency: each requirement_key is locked with SELECT ... FOR UPDATE
+    before reading. Concurrent writers on the same key serialize on the row.
+    For first-time inserts we use a SAVEPOINT + catch IntegrityError and
+    convert to the update path, so two concurrent inserts for the same new
+    key do not lose data.
+    """
     if not updates:
         return
-    
+
     from datetime import datetime
-    
+    from sqlalchemy.exc import IntegrityError
+
     for update in updates:
-        requirement_key = update.get('requirementKey')
+        requirement_key = update.get("requirementKey")
         if not requirement_key:
             continue
-        
-        fg_key = update.get('fgKey', '')
-        buyer_order_id = update.get('buyerOrderId', '')
-        
-        snapshot = db.query(models.InventorySnapshot).filter(
-            models.InventorySnapshot.requirement_key == requirement_key
-        ).first()
-        
-        if snapshot:
-            # fg_key and buyer_order_id are IDENTITY of the snapshot row.
-            # They are set once on insert and never overwritten, so a caller
-            # that passes the wrong fgKey on a later write cannot re-home the
-            # row into a different FG (which clustered rows under one FG).
-            _req_d = Decimal(str(update.get('requiredDelta', 0)))
-            _grn_d = Decimal(str(update.get('grnDelta', 0)))
-            _issue_d = Decimal(str(update.get('issueDelta', 0)))
-            _new_grn = (snapshot.total_grn_received_qty or Decimal('0')) + _grn_d
-            _new_issued = (snapshot.total_issued_qty or Decimal('0')) + _issue_d
-            if _new_grn < Decimal('-0.001'):
+
+        fg_key = update.get("fgKey", "")
+        buyer_order_id = update.get("buyerOrderId", "")
+        if not buyer_order_id and fg_key and "|" in fg_key:
+            buyer_order_id = fg_key.split("|")[0]
+
+        _req_d = Decimal(str(update.get("requiredDelta", 0)))
+        _grn_d = Decimal(str(update.get("grnDelta", 0)))
+        _issue_d = Decimal(str(update.get("issueDelta", 0)))
+
+        def _apply_to_snapshot(snapshot):
+            _new_grn = (snapshot.total_grn_received_qty or Decimal("0")) + _grn_d
+            _new_issued = (snapshot.total_issued_qty or Decimal("0")) + _issue_d
+            if _new_grn < Decimal("-0.001"):
                 raise ValueError(
                     f"snapshot invariant violated: total_grn_received_qty would go negative "
                     f"({snapshot.total_grn_received_qty} + {_grn_d} = {_new_grn}) for {requirement_key}. "
                     f"Reversal likely ran twice."
                 )
-            if _new_issued < Decimal('-0.001'):
+            if _new_issued < Decimal("-0.001"):
                 raise ValueError(
                     f"snapshot invariant violated: total_issued_qty would go negative "
                     f"({snapshot.total_issued_qty} + {_issue_d} = {_new_issued}) for {requirement_key}. "
@@ -266,31 +269,59 @@ def update_inventory_snapshot(db: Session, updates: List[Dict]):
             snapshot.total_required_qty += _req_d
             snapshot.total_grn_received_qty = _new_grn
             snapshot.total_issued_qty = _new_issued
-            snapshot.current_stock = snapshot.total_grn_received_qty - snapshot.total_issued_qty
-            snapshot.pending_shortfall = snapshot.total_required_qty - snapshot.total_grn_received_qty
+            snapshot.current_stock = _new_grn - _new_issued
+            snapshot.pending_shortfall = snapshot.total_required_qty - _new_grn
             snapshot.last_updated = datetime.utcnow()
-        else:
-            # Extract buyer_order_id from fg_key if not provided
-            if not buyer_order_id and fg_key and '|' in fg_key:
-                buyer_order_id = fg_key.split('|')[0]
-            grn_delta = update.get('grnDelta', 0)
-            new_entry = models.InventorySnapshot(
+
+        # Lock the row if it exists.
+        snapshot = (
+            db.query(models.InventorySnapshot)
+            .filter(models.InventorySnapshot.requirement_key == requirement_key)
+            .with_for_update()
+            .first()
+        )
+
+        if snapshot is not None:
+            _apply_to_snapshot(snapshot)
+            continue
+
+        # Try to insert. If a concurrent transaction inserted the same key,
+        # the unique constraint fires; rollback to a savepoint, then re-read
+        # with a lock and apply the delta to the row we just lost to.
+        savepoint = db.begin_nested()
+        try:
+            db.add(models.InventorySnapshot(
                 requirement_key=requirement_key,
                 buyer_order_id=buyer_order_id,
                 fg_key=fg_key,
-                item_no=update.get('itemNo', ''),
-                item_name=update.get('itemName', ''),
-                garment_size=update.get('size', ''),
-                color=update.get('color', ''),
-                supplier=update.get('supplier', ''),
-                total_required_qty=Decimal(str(update.get('requiredDelta', 0))),
-                total_grn_received_qty=Decimal(str(grn_delta)),
-                total_issued_qty=Decimal(str(update.get('issueDelta', 0))),
-                current_stock=Decimal(str(grn_delta)) - Decimal(str(update.get('issueDelta', 0))),
-                pending_shortfall=Decimal(str(update.get('requiredDelta', 0))) - Decimal(str(grn_delta))
+                item_no=update.get("itemNo", ""),
+                item_name=update.get("itemName", ""),
+                garment_size=update.get("size", ""),
+                color=update.get("color", ""),
+                supplier=update.get("supplier", ""),
+                total_required_qty=_req_d,
+                total_grn_received_qty=_grn_d,
+                total_issued_qty=_issue_d,
+                current_stock=_grn_d - _issue_d,
+                pending_shortfall=_req_d - _grn_d,
+            ))
+            savepoint.commit()
+        except IntegrityError:
+            savepoint.rollback()
+            snapshot = (
+                db.query(models.InventorySnapshot)
+                .filter(models.InventorySnapshot.requirement_key == requirement_key)
+                .with_for_update()
+                .first()
             )
-            db.add(new_entry)
+            if snapshot is None:
+                # Should be impossible: unique violation but no row visible.
+                raise
+            _apply_to_snapshot(snapshot)
+
     db.commit()
+
+
 def generate_po_token() -> str:
     from datetime import datetime
     date = datetime.utcnow()
