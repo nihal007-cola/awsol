@@ -84,7 +84,7 @@ def get_party(id: str, db: Session = Depends(get_db)):
     }
 
 @router.post("/buyers")
-def add_buyer(data: Dict, db: Session = Depends(get_db)):
+def add_buyer(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Add a new buyer"""
     from ..crud import add_master_entity
     try:
@@ -103,7 +103,7 @@ def add_buyer(data: Dict, db: Session = Depends(get_db)):
         return {"success": False, "message": str(e)}
 
 @router.post("/suppliers")
-def add_supplier(data: Dict, db: Session = Depends(get_db)):
+def add_supplier(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Add a new supplier"""
     from ..crud import add_master_entity
     try:

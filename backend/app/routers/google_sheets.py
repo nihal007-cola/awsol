@@ -1,14 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import Base
-import json
+from ..models import Base, User
+from ..auth import require_role
 
 router = APIRouter(prefix="/api/google-sheets", tags=["Google Sheets"])
 
+
 @router.get("/tables-list")
-async def list_tables(db: Session = Depends(get_db)):
-    """List all tables in the database"""
+def list_tables(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """List all tables in the database with row counts. Admin only."""
     try:
         tables = {}
         for model in Base.__subclasses__():
@@ -22,28 +26,29 @@ async def list_tables(db: Session = Depends(get_db)):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+
 @router.get("/export-json")
-async def export_json(db: Session = Depends(get_db)):
-    """Export all data as JSON"""
+def export_json(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Export all data as JSON. Admin only."""
     try:
         all_data = {}
         for model in Base.__subclasses__():
             table_name = model.__tablename__
             data = db.query(model).all()
-            if data:
-                columns = [c.name for c in model.__table__.columns]
-                table_data = []
-                for row in data:
-                    row_dict = {}
-                    for col in columns:
-                        value = getattr(row, col)
-                        if hasattr(value, 'isoformat'):
-                            value = value.isoformat()
-                        row_dict[col] = value
-                    table_data.append(row_dict)
-                all_data[table_name] = table_data
-            else:
-                all_data[table_name] = []
+            columns = [c.name for c in model.__table__.columns]
+            rows = []
+            for row in data:
+                row_dict = {}
+                for col in columns:
+                    value = getattr(row, col)
+                    if hasattr(value, "isoformat"):
+                        value = value.isoformat()
+                    row_dict[col] = value
+                rows.append(row_dict)
+            all_data[table_name] = rows
         return {"status": "success", "data": all_data}
     except Exception as e:
         return {"status": "error", "message": str(e)}
