@@ -147,11 +147,23 @@ def save_rm_inspection(data: Dict, db: Session = Depends(get_db), current_user: 
         inspector = data.get('inspector', 'admin')
         if not po_token or not item or quantity <= 0:
             return {"success": False, "message": "Missing required fields"}
+
+        # Resolve the real buyer_order_id for this PO. The FK column must
+        # hold a buyer order ID, not the PO token.
+        all_entries = crud.get_ledger_entries(db)
+        rm_lookup = next((e for e in all_entries
+                          if e.activity_type == 'RM_ORDER'
+                          and e.extra_data
+                          and e.extra_data.get('poToken') == po_token), None)
+        po_buyer_order_id = rm_lookup.buyer_order_id if rm_lookup else ''
+        if not po_buyer_order_id:
+            return {"success": False, "message": "Buyer order not found for this PO"}
+
         passed = quantity - rejected
         status = 'PASSED' if rejected == 0 else ('REJECTED' if rejected == quantity else 'PARTIAL')
         inspection = InspectionRecord(
             inspection_id=f"RM-INSP-{uuid.uuid4().hex[:6].upper()}",
-            buyer_order_id=po_token,
+            buyer_order_id=po_buyer_order_id,
             reference=po_token,
             inspection_type='RAW_MATERIAL',
             inspector=inspector,
