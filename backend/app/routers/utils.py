@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
@@ -239,8 +240,22 @@ def get_cancellations(buyer_order_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/health")
-def health_check():
-    return {"status": "healthy", "version": "1.0.0"}
+def health_check(db: Session = Depends(get_db)):
+    """Liveness + DB readiness. Used by ALB target group health check."""
+    from sqlalchemy import text as _sql_text
+    db_ok = True
+    db_error = None
+    try:
+        db.execute(_sql_text("SELECT 1"))
+    except Exception as e:
+        db_ok = False
+        db_error = str(e)
+    return {
+        "status": "healthy" if db_ok else "degraded",
+        "db": db_ok,
+        "db_error": db_error,
+        "version": "1.0.0",
+    }
 
 @router.get("/workflow")
 def get_workflow():
