@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import jwt
 import bcrypt
 import os
+from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel, EmailStr
 
@@ -14,7 +15,9 @@ from .models import User
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 security = HTTPBearer()
 
-JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
+from dotenv import load_dotenv as _ld
+_ld(Path(__file__).resolve().parent.parent.parent / ".env")
+JWT_SECRET = os.environ["JWT_SECRET"]  # fail fast if missing
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24  # 24 hours
 
