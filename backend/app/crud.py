@@ -551,19 +551,21 @@ def move_stage(db: Session, buyer_order_id: str, direction: str, user: str = "sy
     }
 
 def update_token_stage(db: Session, buyer_order_id: str, new_stage: str, user: str = "system") -> WorkflowToken:
-    """Update token stage without moving (for edits within same stage)"""
+    """Update token stage without moving (for edits within same stage)."""
     token = get_or_create_token(db, buyer_order_id, new_stage)
+    new_version = (token.current_version or 1) + 1
     token.current_stage = new_stage
-    # Also update the buyer_orders table
-    buyer_order = db.query(models.BuyerOrder).filter(models.BuyerOrder.buyer_order_id == buyer_order_id).first()
+    token.current_version = new_version
+    token.updated_at = datetime.utcnow()
+    token.locked_by = user
+    token.locked_at = datetime.utcnow()
+    buyer_order = db.query(models.BuyerOrder).filter(
+        models.BuyerOrder.buyer_order_id == buyer_order_id
+    ).first()
     if buyer_order:
         buyer_order.current_stage = new_stage
         buyer_order.version = new_version
         buyer_order.updated_date = datetime.utcnow()
-    token.current_version += 1
-    token.updated_at = datetime.utcnow()
-    token.locked_by = user
-    token.locked_at = datetime.utcnow()
     db.commit()
     db.refresh(token)
     return token
