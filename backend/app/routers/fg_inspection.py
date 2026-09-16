@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 from ..models import InspectionRecord, ActivityLedger, FGInventory, StageTransition
 import uuid
 
@@ -90,7 +92,7 @@ def get_fg_inspections(db: Session = Depends(get_db)):
     return result
 
 @router.post("/cancel")
-def cancel_fg_inspection(data: Dict, db: Session = Depends(get_db)):
+def cancel_fg_inspection(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Cancel FG Inspection for a buyer order:
     - Undo the FGInventory rows that PASSED inspection created
@@ -275,7 +277,7 @@ def get_fg_inspection_detail(buyer_order_id: str, db: Session = Depends(get_db))
 
 
 @router.post("/submit")
-def submit_fg_inspection(data: Dict, db: Session = Depends(get_db)):
+def submit_fg_inspection(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Submit FG inspection for a buyer order.
     Payload: {

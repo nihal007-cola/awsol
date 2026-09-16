@@ -5,11 +5,13 @@ from datetime import datetime
 from .. import crud, schemas, models
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 @router.post("/data")
-def get_report_data(data: Dict, db: Session = Depends(get_db)):
+def get_report_data(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     report_type = data.get('reportType')
     filters = data.get('filters', {})
     

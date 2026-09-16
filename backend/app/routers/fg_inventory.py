@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 from .. import models
 from ..models import FGInventory, ActivityLedger, StageTransition
 
@@ -128,7 +130,7 @@ def get_fg_inventory_orders(db: Session = Depends(get_db)):
     return result
 
 @router.post("/send-back")
-def send_back_to_inspection(data: Dict, db: Session = Depends(get_db)):
+def send_back_to_inspection(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Move token backward FG_INVENTORY -> FG_INSPECTION.
     Unwinds FGInventory rows (created by the last FG Inspection PASS) so the
@@ -253,7 +255,7 @@ def get_dispatch_data(buyer_order_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/dispatch")
-def dispatch_fg_bulk(data: Dict, db: Session = Depends(get_db)):
+def dispatch_fg_bulk(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Dispatch FG from a buyer order.
     Payload: {
@@ -374,7 +376,7 @@ def dispatch_fg_bulk(data: Dict, db: Session = Depends(get_db)):
 
 
 @router.post("/return")
-def return_fg_inventory(data: Dict, db: Session = Depends(get_db)):
+def return_fg_inventory(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Return FG from inventory back to FG_INSPECTION (unwind ready qty, move token)."""
     from .. import models
     

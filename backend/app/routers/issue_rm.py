@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas, models
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 import logging
 
 router = APIRouter(prefix="/issue-rm", tags=["Issue RM"])
@@ -243,7 +245,7 @@ def get_issuable_items(fg_key: str, db: Session = Depends(get_db)):
     } for item in snapshot]
 
 @router.post("/save")
-def save_issue_rm(data: schemas.IssueRMSaveRequest, db: Session = Depends(get_db)):
+def save_issue_rm(data: schemas.IssueRMSaveRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         fg_key = crud.clean_key_exact(data.fg_key)
         items = data.items
@@ -443,7 +445,7 @@ def save_issue_rm(data: schemas.IssueRMSaveRequest, db: Session = Depends(get_db
     except Exception as e:
         return {'success': False, 'message': str(e)}
 @router.post("/save-bulk")
-def save_issue_rm_bulk(data: Dict, db: Session = Depends(get_db)):
+def save_issue_rm_bulk(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Bulk issue RM: accepts list of {requirement_key, issuing_qty} for a buyer order.
     Writes ISSUE_RM entries, updates snapshot with issueDelta (stock out),
@@ -665,7 +667,7 @@ def save_issue_rm_bulk(data: Dict, db: Session = Depends(get_db)):
         return {'success': False, 'message': str(e)}
 
 @router.post("/cancel")
-def cancel_issue_rm(data: Dict, db: Session = Depends(get_db)):
+def cancel_issue_rm(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Cancel Issue RM for a whole buyer order:
     - Reverse issueDelta on inventory snapshot for every ISSUED MATERIAL_REQUIREMENT line

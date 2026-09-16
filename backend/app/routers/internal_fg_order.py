@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 from ..models import InternalFGOrder, ActivityLedger, StageTransition
 import uuid
 
@@ -108,7 +110,7 @@ def get_internal_fg_orders(db: Session = Depends(get_db)):
     return result
 
 @router.post("/save")
-def save_internal_fg_order(data: Dict, db: Session = Depends(get_db)):
+def save_internal_fg_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         buyer_order_id = data.get('buyer_order_id', '')
         fg_key = data.get('fg_key', '')
@@ -152,7 +154,7 @@ def save_internal_fg_order(data: Dict, db: Session = Depends(get_db)):
         return {"success": False, "message": str(e)}
 
 @router.post("/issue-factory-order")
-def issue_factory_order(data: Dict, db: Session = Depends(get_db)):
+def issue_factory_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Issue factory orders for all FGs of a buyer order with per-FG extra percentage (0-7% cap).
     Creates InternalFGOrder records, then moves token INTERNAL_FG_ORDER -> ISSUE_RM.
@@ -335,7 +337,7 @@ def issue_factory_order(data: Dict, db: Session = Depends(get_db)):
         return {"success": False, "message": str(e)}
 
 @router.post("/process")
-def process_internal_fg_order(data: Dict, db: Session = Depends(get_db)):
+def process_internal_fg_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         internal_order_id = data.get('internal_order_id', '')
         if not internal_order_id:
@@ -369,7 +371,7 @@ def process_internal_fg_order(data: Dict, db: Session = Depends(get_db)):
         return {'success': False, 'message': str(e)}
 
 @router.post("/cancel")
-def cancel_internal_fg_order(data: Dict, db: Session = Depends(get_db)):
+def cancel_internal_fg_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         internal_order_id = data.get('internal_order_id', '')
         if not internal_order_id:
@@ -404,7 +406,7 @@ def cancel_internal_fg_order(data: Dict, db: Session = Depends(get_db)):
 
 
 @router.post("/cancel-buyer-order")
-def cancel_internal_fg_for_buyer(data: Dict, db: Session = Depends(get_db)):
+def cancel_internal_fg_for_buyer(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Cancel INTERNAL_FG_ORDER stage for a whole buyer order.
 
