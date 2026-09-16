@@ -367,7 +367,7 @@ def save_bom_order(data: Dict, db: Session = Depends(get_db), current_user: User
                 ),
             }
 
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         order_entries = [e for e in all_entries if e.buyer_order_id == buyer_order_id and e.activity_type == 'BUYER_ORDER' and e.status == 'COMPLETED']
         
         if not order_entries:
@@ -662,7 +662,7 @@ def cancel_bom(data: Dict, db: Session = Depends(get_db), current_user: User = D
         # Move token backward to BUYER_ORDER
         move_result = crud.move_stage(db, buyer_order_id, "backward", "system")
         
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         
         # Get the original buyer order details
         buyer_order_entry = next((e for e in all_entries if e.buyer_order_id == buyer_order_id and e.activity_type == 'BUYER_ORDER' and e.status == 'COMPLETED'), None)
@@ -846,7 +846,7 @@ def submit_bom_for_approval(data: Dict, db: Session = Depends(get_db), current_u
             return {"success": False, "message": "Cannot move forward from current stage"}
         
         # Check if BOM is COMPLETED
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         bom_entries = [e for e in all_entries if e.buyer_order_id == buyer_order_id and e.activity_type == 'BOM' and e.status == 'COMPLETED']
         if not bom_entries:
             return {"success": False, "message": "BOM must be completed before submitting for approval"}
