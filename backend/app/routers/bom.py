@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 import json
 
 router = APIRouter(prefix="/bom", tags=["BOM"])
@@ -115,7 +117,7 @@ def get_bom_data(fg_key: str, db: Session = Depends(get_db)):
 # SAVE BOM - Legacy per-FG BOM save (kept for compatibility)
 # ==============================================================
 @router.post("/save")
-def save_bom(data: schemas.BOMSaveRequest, db: Session = Depends(get_db)):
+def save_bom(data: schemas.BOMSaveRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         fg_key = crud.clean_key_exact(data.fg_key)
         if not fg_key:
@@ -338,7 +340,7 @@ def save_bom(data: schemas.BOMSaveRequest, db: Session = Depends(get_db)):
 # SAVE BOM ORDER - Save BOM for entire buyer order
 # ==============================================================
 @router.post("/save-order")
-def save_bom_order(data: Dict, db: Session = Depends(get_db)):
+def save_bom_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         buyer_order_id = data.get('buyer_order_id', '')
         fg_bom_data = data.get('fg_bom_data', {})
@@ -638,7 +640,7 @@ def save_bom_order(data: Dict, db: Session = Depends(get_db)):
 # CANCEL BOM - Move order back to Buyer Orders
 # ==============================================================
 @router.post("/cancel")
-def cancel_bom(data: Dict, db: Session = Depends(get_db)):
+def cancel_bom(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         buyer_order_id = data.get('buyer_order_id', '')
         if not buyer_order_id:
@@ -824,7 +826,7 @@ def get_bom_order_data(buyer_order_id: str, db: Session = Depends(get_db)):
 # SUBMIT BOM FOR APPROVAL - Move from BOM to COSTING_APPROVAL
 # ==============================================================
 @router.post("/submit-approval")
-def submit_bom_for_approval(data: Dict, db: Session = Depends(get_db)):
+def submit_bom_for_approval(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         buyer_order_id = data.get('buyer_order_id', '')
         if not buyer_order_id:

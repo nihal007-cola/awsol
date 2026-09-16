@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas, models
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 
 router = APIRouter(prefix="/buyer-order", tags=["Buyer Order"])
 
@@ -34,7 +36,7 @@ def get_fg_serial(db: Session = Depends(get_db)):
 # GENERATE GRID
 # ==============================================================
 @router.post("/generate-grid")
-def generate_grid(request: dict, db: Session = Depends(get_db)):
+def generate_grid(request: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         buyer_name = request.get('buyer_name', '')
         buyer_order_no = request.get('buyer_order_no', '')
@@ -65,7 +67,7 @@ def generate_grid(request: dict, db: Session = Depends(get_db)):
 # SAVE BUYER ORDER
 # ==============================================================
 @router.post("/save")
-def save_buyer_order(request: dict, db: Session = Depends(get_db)):
+def save_buyer_order(request: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         grid_data = request.get('grid_data', [])
         fg_order_serial = request.get('fg_order_serial', '')
@@ -193,7 +195,7 @@ def get_buyer_orders(db: Session = Depends(get_db), show_cancelled: bool = False
 # CANCEL BUYER ORDER
 # ==============================================================
 @router.post("/cancel")
-def cancel_buyer_order(data: Dict, db: Session = Depends(get_db)):
+def cancel_buyer_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         buyer_order_id = data.get('buyer_order_id', '')
         if not buyer_order_id:
@@ -412,7 +414,7 @@ def get_order_grid(order_id: str, db: Session = Depends(get_db)):
 # UPDATE BUYER ORDER
 # ==============================================================
 @router.post("/update")
-def update_buyer_order(data: Dict, db: Session = Depends(get_db)):
+def update_buyer_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         buyer_order_id = data.get('buyer_order_id', '')
         grid_data = data.get('grid_data', [])
@@ -525,7 +527,7 @@ def update_buyer_order(data: Dict, db: Session = Depends(get_db)):
 # PROCESS ORDER TO BOM
 # ==============================================================
 @router.post("/process-to-bom")
-def process_order_to_bom(data: Dict, db: Session = Depends(get_db)):
+def process_order_to_bom(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         buyer_order_id = data.get('buyer_order_id', '')
         if not buyer_order_id:

@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas
 from ..database import get_db
 from ..config import settings
+from ..auth import require_role
+from ..models import User
 from ..models import CostingApproval, ActivityLedger, StageTransition
 
 router = APIRouter(prefix="/approval", tags=["Costing Approval"])
@@ -105,7 +107,7 @@ def get_approval_order_detail(order_id: str, db: Session = Depends(get_db)):
     }
 
 @router.post("/reject")
-def reject_costing(data: Dict, db: Session = Depends(get_db)):
+def reject_costing(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     """Reject costing for an order - moves back to BOM"""
     try:
         buyer_order_id = data.get('buyer_order_id', '')
@@ -207,7 +209,7 @@ def reject_costing(data: Dict, db: Session = Depends(get_db)):
         return {"success": False, "message": str(e)}
 
 @router.post("/approve")
-def approve_costing(data: Dict, db: Session = Depends(get_db)):
+def approve_costing(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     """Approve costing for an order - moves to RM_ORDER"""
     try:
         buyer_order_id = data.get('buyer_order_id', '')
