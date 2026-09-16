@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sneha Creations ERP - Login</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #e8edf5 0%, #d5dce8 100%);
+            padding: 20px;
+        }
+        .login-container { width: 100%; max-width: 420px; }
+        .login-card {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 40px 32px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .logo-section { text-align: center; margin-bottom: 32px; }
+        .logo-section .logo-icon { font-size: 48px; color: #2a6df4; display: block; margin-bottom: 8px; }
+        .logo-section h1 { font-size: 24px; font-weight: 700; color: #0b1b33; }
+        .logo-section .subtitle { font-size: 14px; color: #62748e; }
+        .logo-section .subtitle span { color: #2a6df4; font-weight: 500; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 500; color: #4a5a7a; margin-bottom: 5px; }
+        .form-group .input-wrapper { position: relative; }
+        .form-group .input-wrapper i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a0b0c8;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px 12px 44px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 15px;
+            background: rgba(255,255,255,0.7);
+            color: #0b1b33;
+            transition: all 0.25s ease;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #2a6df4;
+            box-shadow: 0 0 0 4px rgba(42,109,244,0.12);
+        }
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: #2a6df4;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .btn-login:hover { background: #1a5bd4; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(42,109,244,0.3); }
+        .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+        .error-message {
+            color: #ea4335;
+            font-size: 13px;
+            margin-top: 8px;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: rgba(234,67,53,0.08);
+            border-radius: 8px;
+        }
+        .error-message.show { display: flex; }
+        .login-footer { text-align: center; margin-top: 20px; font-size: 13px; color: #62748e; }
+        .login-footer a { color: #2a6df4; text-decoration: none; font-weight: 500; cursor: pointer; }
+        .login-footer a:hover { text-decoration: underline; }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 500;
+            color: white;
+            background: rgba(29,43,68,0.92);
+            backdrop-filter: blur(12px);
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            max-width: 92%;
+            text-align: center;
+        }
+        .toast.show { opacity: 1; }
+        .toast.success { background: rgba(26,122,59,0.92); }
+        .toast.error { background: rgba(122,26,26,0.92); }
+        .toast.info { background: rgba(26,59,122,0.92); }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="logo-section">
+                <img src="/static/assets/images/sneha_logo.png" alt="Sneha Creations" style="width: 220px; height: auto; display: block; margin: 0 auto 8px;">
+                <h1>Sneha Creations</h1>
+                <p class="subtitle">ERP · Powered by <span>Offices Of Nawnit Nihal</span></p>
+            </div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="email" placeholder="Enter your email" required autocomplete="email">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" placeholder="Enter your password" required autocomplete="current-password">
+                    </div>
+                </div>
+
+                <div id="errorMessage" class="error-message">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span id="errorText">Invalid credentials</span>
+                </div>
+
+                <button type="submit" class="btn-login" id="loginBtn">
+                    <i class="fas fa-arrow-right-to-bracket"></i>
+                    Sign In
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <a href="#" onclick="showToast('Contact admin@sneha.com for access', 'info')">Contact Admin</a>
+                &nbsp;·&nbsp;
+                <a href="#" onclick="showToast('Reset link sent to your email', 'success')">Forgot Password?</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const API_BASE = '';
+
+        function showToast(msg, type = '') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show ' + type;
+            clearTimeout(t._timeout);
+            t._timeout = setTimeout(() => t.className = 'toast', 4000);
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const errorMessage = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            const loginBtn = document.getElementById('loginBtn');
+
+            if (!email || !password) {
+                errorText.textContent = 'Please fill in all fields';
+                errorMessage.classList.add('show');
+                return;
+            }
+
+            errorMessage.classList.remove('show');
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+
+            try {
+                const response = await fetch(API_BASE + '/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('access_token', data.access_token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    showToast('Login successful!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/static/index.html?token=' + data.access_token;
+                    }, 500);
+                } else {
+                    errorText.textContent = data.detail || 'Invalid credentials';
+                    errorMessage.classList.add('show');
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = '<i class="fas fa-arrow-right-to-bracket"></i> Sign In';
+                }
+            } catch (error) {
+                errorText.textContent = 'Network error. Please try again.';
+                errorMessage.classList.add('show');
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = '<i class="fas fa-arrow-right-to-bracket"></i> Sign In';
+            }
+        });
+
+        // Check if already logged in
+        const token = localStorage.getItem('access_token');
+        if (token) {
+            fetch(API_BASE + '/api/auth/me', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            }).then(response => {
+                if (response.ok) {
+                    window.location.href = '/static/index.html?token=' + token;
+                }
+            }).catch(() => {});
+        }
+    </script>
+    <script>
+    // ============ SESSION MANAGEMENT ============
+    const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    const MINIMIZE_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+    let inactivityTimer;
+    let minimizeTimer;
+    
+    function resetInactivityTimer() {
+        clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+            console.log("Session expired due to inactivity");
+            alert("Your session has expired due to inactivity. Please login again.");
+            logoutUser();
+        }, SESSION_TIMEOUT);
+    }
+    
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            clearTimeout(minimizeTimer);
+            minimizeTimer = setTimeout(() => {
+                console.log("Session expired - browser minimized too long");
+                alert("Session expired. Please login again.");
+                logoutUser();
+            }, MINIMIZE_TIMEOUT);
+        } else {
+            clearTimeout(minimizeTimer);
+            resetInactivityTimer();
+        }
+    }
+    
+    function logoutUser() {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+    }
+    
+    function initSessionManagement() {
+        const events = ["click", "keypress", "mousemove", "scroll", "touchstart", "keydown"];
+        events.forEach(event => {
+            document.addEventListener(event, resetInactivityTimer);
+        });
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        resetInactivityTimer();
+    }
+    </script>
+
+</body>
+</html>
