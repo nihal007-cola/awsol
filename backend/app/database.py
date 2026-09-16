@@ -11,8 +11,8 @@ from .config import settings
 # reduce pool_size. Tune together with worker count.
 engine = create_engine(
     settings.database_url,
-    pool_size=20,
-    max_overflow=30,
+    pool_size=10,
+    max_overflow=20,
     pool_pre_ping=True,
     pool_recycle=1800,
     pool_timeout=30,
