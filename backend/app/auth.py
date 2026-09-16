@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -9,11 +9,16 @@ from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel, EmailStr
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from .database import get_db
 from .models import User
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 security = HTTPBearer()
+
+login_limiter = Limiter(key_func=get_remote_address)
 
 from dotenv import load_dotenv as _ld
 _ld(Path(__file__).resolve().parent.parent.parent / ".env")
@@ -83,11 +88,16 @@ def require_role(*allowed_roles: str):
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == request.email).first()
+@login_limiter.limit("10/minute")
+def login(
+    request: Request,
+    body: LoginRequest,
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.email == body.email).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not verify_password(request.password, user.password_hash):
+    if not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
