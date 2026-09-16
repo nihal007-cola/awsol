@@ -475,7 +475,7 @@ def save_issue_rm_bulk(data: Dict, db: Session = Depends(get_db), current_user: 
         snapshot = crud.get_inventory_snapshot(db)
         snapshot_by_key = {s.requirement_key: s for s in snapshot}
         
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         buyer_order_entry = next((e for e in all_entries 
                                   if e.buyer_order_id == buyer_order_id 
                                   and e.activity_type == 'BUYER_ORDER' 
@@ -687,7 +687,7 @@ def cancel_issue_rm(data: Dict, db: Session = Depends(get_db), current_user: Use
         if not crud.can_move_backward(db, buyer_order_id):
             return {"success": False, "message": "Cannot move backward from current stage"}
 
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         issued_entries = [e for e in all_entries
                           if e.buyer_order_id == buyer_order_id
                           and e.activity_type == 'MATERIAL_REQUIREMENT'
