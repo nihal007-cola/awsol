@@ -1,3 +1,6 @@
+import logging
+import os
+
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
@@ -8,9 +11,13 @@ from .routers import (
 )
 from . import auth
 from .config import settings
-import os
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("erp")
 from pathlib import Path
-import jwt
 
 Base.metadata.create_all(bind=engine)
 
