@@ -96,7 +96,6 @@ def get_rm_orders(db: Session = Depends(get_db)):
 @router.post("/generate-po")
 def generate_po_for_supplier(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        all_entries = crud.get_ledger_entries(db)
         supplier = crud.clean_key_exact(data.get('supplier', ''))
         selected_items = data.get('selected_items', [])
         cgst_override = data.get('cgst_override', {})
@@ -193,8 +192,9 @@ def generate_po_for_supplier(data: Dict, db: Session = Depends(get_db), current_
             # item.fgKey, which corrupts inventory_snapshot.fg_key downstream
             # (Issue RM filters snapshot by fg_key and finds nothing).
             _real_fg_key = fg_key
+            _item_entries = crud.get_ledger_entries_for_order(db, _bo_id) if _bo_id else []
             if _req_key:
-                for _e in all_entries:
+                for _e in _item_entries:
                     if (_e.activity_type == 'MATERIAL_REQUIREMENT'
                         and _e.buyer_order_id == _bo_id
                         and _e.status != 'CANCELLED'
@@ -209,7 +209,7 @@ def generate_po_for_supplier(data: Dict, db: Session = Depends(get_db), current_
             # key includes poToken — so without this step the old DRAFT row would
             # survive and inflate totalPOsMade.
             if _bo_id and _req_key:
-                prior_live = [e for e in all_entries
+                prior_live = [e for e in _item_entries
                               if e.activity_type == 'RM_ORDER'
                               and e.buyer_order_id == _bo_id
                               and e.status in ('DRAFT', 'SAVED')
@@ -291,7 +291,7 @@ def generate_po_for_supplier(data: Dict, db: Session = Depends(get_db), current_
                 }
             })
             _req_key = item.get('requirementKey')
-            req_entries = [e for e in all_entries if e.activity_type == 'MATERIAL_REQUIREMENT'
+            req_entries = [e for e in _item_entries if e.activity_type == 'MATERIAL_REQUIREMENT'
                           and e.status == 'PENDING'
                           and e.extra_data and e.extra_data.get('requirementKey') == _req_key]
             for req in req_entries:
@@ -299,7 +299,7 @@ def generate_po_for_supplier(data: Dict, db: Session = Depends(get_db), current_
                 _mr_ver = _ledger_version_for(_mr_bo_id) if _mr_bo_id else 1
                 # Supersede prior non-CANCELLED MR rows for the same logical key
                 # (buyer_order_id, fg_key, requirementKey) before writing ORDERED.
-                prior_mr = [e for e in all_entries
+                prior_mr = [e for e in _item_entries
                             if e.activity_type == 'MATERIAL_REQUIREMENT'
                             and e.buyer_order_id == _mr_bo_id
                             and e.fg_key == req.fg_key
@@ -446,7 +446,7 @@ def generate_po_html(po_token, supplier_alias, supplier_details, items, grand_to
 def save_po(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         po_token = crud.clean_key_exact(data.get('po_token', ''))
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_po(db, po_token)
         entries_to_insert = []
         updated = 0
         for entry in all_entries:
@@ -480,7 +480,7 @@ def process_po(data: Dict, db: Session = Depends(get_db), current_user: User = D
         po_token = crud.clean_key_exact(data.get('po_token', ''))
         if not po_token:
             return {"success": False, "message": "PO Token is required"}
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_po(db, po_token)
         draft_entries = [e for e in all_entries if e.activity_type == 'RM_ORDER' 
                         and e.extra_data and e.extra_data.get('poToken') == po_token 
                         and e.status == 'DRAFT']
@@ -585,7 +585,7 @@ def cancel_rm_order(data: Dict, db: Session = Depends(get_db), current_user: Use
         po_token = crud.clean_key_exact(data.get('po_token', ''))
         if not po_token:
             return {"success": False, "message": "PO Token is required"}
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_po(db, po_token)
         draft_entries = [e for e in all_entries if e.activity_type == 'RM_ORDER' 
                         and e.extra_data and e.extra_data.get('poToken') == po_token 
                         and e.status not in ['CANCELLED', 'PROCESSED']]
@@ -739,7 +739,7 @@ def cancel_rm_order_for_buyer(data: Dict, db: Session = Depends(get_db), current
 
         move_result = crud.move_stage(db, buyer_order_id, 'backward', 'system')
 
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         rm_entries = [e for e in all_entries
                       if e.buyer_order_id == buyer_order_id
                       and e.activity_type == 'RM_ORDER'
