@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Text, Boolean, ForeignKey, Index, Numeric, func
+from sqlalchemy import text, Column, Integer, String, Float, DateTime, JSON, Text, Boolean, ForeignKey, Index, Numeric, func
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -156,6 +156,11 @@ class ActivityLedger(Base):
         Index('idx_ledger_bo', 'buyer_order_id', 'activity_type'),
         Index('idx_ledger_fg', 'fg_key', 'activity_type'),
         Index('idx_ledger_transaction', 'transaction_id'),
+        # T22: expression indexes on JSONB fields for scoped lookups.
+        Index('idx_ledger_bo_version', 'buyer_order_id', 'version'),
+        Index('idx_ledger_bo_type_status', 'buyer_order_id', 'activity_type', 'status'),
+        Index('idx_ledger_po_token', text("(extra_data->>'poToken')")),
+        Index('idx_ledger_req_key', text("(extra_data->>'requirementKey')")),
     )
 
 # ==============================================================
@@ -252,6 +257,8 @@ class InventorySnapshot(Base):
         Index('idx_snapshot_fg', 'fg_key'),
         Index('idx_snapshot_item', 'item_no'),
         Index('idx_snapshot_req', 'requirement_key'),
+        # T22: per-order / per-FG aggregation.
+        Index('idx_snapshot_bo_fg', 'buyer_order_id', 'fg_key'),
     )
 
 # ==============================================================
