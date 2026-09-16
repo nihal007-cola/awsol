@@ -183,7 +183,7 @@ def issue_factory_order(data: Dict, db: Session = Depends(get_db), current_user:
         if not crud.can_move_forward(db, buyer_order_id):
             return {"success": False, "message": "Cannot move forward"}
         
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         latest_version = crud.get_latest_buyer_order_version(db, buyer_order_id)
         fg_entries = [e for e in all_entries 
                      if e.buyer_order_id == buyer_order_id 
@@ -477,7 +477,7 @@ def cancel_internal_fg_for_buyer(data: Dict, db: Session = Depends(get_db), curr
         snapshot_updates = []
         grn_cancel_rows = []
         # Pre-load all ledger rows once so the idempotency check below is O(1) per line.
-        _all_entries_for_guard = crud.get_ledger_entries(db)
+        _all_entries_for_guard = crud.get_ledger_entries_for_order(db, buyer_order_id)
         for grn in live_grns:
             ed = grn.extra_data or {}
             req_key = ed.get('requirementKey', '')
