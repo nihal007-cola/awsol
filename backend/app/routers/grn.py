@@ -275,7 +275,7 @@ def print_po_html(po_token: str, db: Session = Depends(get_db)):
     from .. import models
     
     clean_token = crud.clean_key_exact(po_token)
-    all_entries = crud.get_ledger_entries(db)
+    all_entries = crud.get_ledger_entries_for_po(db, clean_token)
     
     # Get PO line items from activity_ledger
     po_entries = [e for e in all_entries 
@@ -448,7 +448,7 @@ def save_grn(data: schemas.GRNSaveRequest, db: Session = Depends(get_db), curren
         if not valid_items:
             raise ValueError('No valid items to receive')
         
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_po(db, po_token)
         validated_items = []
         has_shortfall = False
         shortfall_map = {}
@@ -762,7 +762,7 @@ def receive_po(data: Dict, db: Session = Depends(get_db), current_user: User = D
         except Exception:
             parsed_date = datetime.utcnow()
 
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         
         # Canonical ledger version for every row written by this receive.
         _token = db.query(models.WorkflowToken).filter(
@@ -1040,7 +1040,7 @@ def receive_po(data: Dict, db: Session = Depends(get_db), current_user: User = D
         move_result = None
         if is_final:
             # Refresh entries to include the ones we just inserted
-            all_entries_after = crud.get_ledger_entries(db)
+            all_entries_after = crud.get_ledger_entries_for_order(db, buyer_order_id)
             
             # Get all POs for this buyer order (RM_ORDER entries with poToken)
             po_tokens_for_order = set()
@@ -1116,7 +1116,7 @@ def close_po(data: Dict, db: Session = Depends(get_db), current_user: User = Dep
         if not po_token:
             return {'success': False, 'message': 'PO Token is required'}
 
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_po(db, po_token)
 
         # Resolve the buyer order for this PO
         rm_order_entry = next((e for e in all_entries
@@ -1286,7 +1286,7 @@ def close_po(data: Dict, db: Session = Depends(get_db), current_user: User = Dep
         # Auto-move to INTERNAL_FG_ORDER when ALL POs are RECEIVED
         # =============================================================
         move_result = None
-        all_entries_after = crud.get_ledger_entries(db)
+        all_entries_after = crud.get_ledger_entries_for_order(db, buyer_order_id)
 
         po_tokens_for_order = set()
         for e in all_entries_after:
@@ -1355,7 +1355,7 @@ def cancel_grn(data: Dict, db: Session = Depends(get_db), current_user: User = D
         if not po_token:
             raise ValueError('PO Token is required')
 
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_po(db, po_token)
         grn_entries = [e for e in all_entries if e.activity_type == 'GRN'
                        and e.extra_data and crud.clean_key_exact(e.extra_data.get('poToken', '')) == po_token
                        and e.status != 'CANCELLED']
@@ -1629,7 +1629,7 @@ def cancel_grn_buyer_order(data: Dict, db: Session = Depends(get_db), current_us
         new_version = move_result['new_version']
 
         # Log a CANCELLED GRN summary row for traceability (no reversal).
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         bo = next((e for e in all_entries
                    if e.buyer_order_id == buyer_order_id
                    and e.activity_type == 'BUYER_ORDER'

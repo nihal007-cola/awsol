@@ -194,6 +194,49 @@ def add_ledger_entries_bulk(db: Session, rows: List[Dict]):
     db.commit()
     return entries
 
+def get_ledger_entries_for_po(
+    db: Session,
+    po_token: str,
+    activity_type: Optional[str] = None,
+):
+    """Scoped ledger read keyed on extra_data->>'poToken'.
+
+    Used when the caller has a PO token but not a buyer_order_id yet.
+    Pushes the filter into SQL so we do not scan the whole ledger.
+    """
+    if not po_token:
+        raise ValueError("get_ledger_entries_for_po: po_token is required")
+    q = db.query(models.ActivityLedger).filter(
+        models.ActivityLedger.extra_data["poToken"].astext == po_token
+    )
+    if activity_type:
+        q = q.filter(models.ActivityLedger.activity_type == activity_type.upper())
+    return q.order_by(models.ActivityLedger.id.asc()).all()
+
+
+def get_ledger_entries_for_order(
+    db: Session,
+    buyer_order_id: str,
+    activity_type: Optional[str] = None,
+    status: Optional[str] = None,
+):
+    """Scoped ledger read: filters in SQL instead of loading the whole table.
+
+    Use this instead of `get_ledger_entries(db)` whenever you already know
+    the buyer_order_id. Never call the unscoped version in a hot path.
+    """
+    if not buyer_order_id:
+        raise ValueError("get_ledger_entries_for_order: buyer_order_id is required")
+    q = db.query(models.ActivityLedger).filter(
+        models.ActivityLedger.buyer_order_id == buyer_order_id
+    )
+    if activity_type:
+        q = q.filter(models.ActivityLedger.activity_type == activity_type.upper())
+    if status:
+        q = q.filter(models.ActivityLedger.status == status.upper())
+    return q.order_by(models.ActivityLedger.id.asc()).all()
+
+
 def get_ledger_entries(db: Session, fg_key: Optional[str] = None, workflow_position: Optional[float] = None,
                        activity_type: Optional[str] = None, status: Optional[str] = None):
     query = db.query(models.ActivityLedger)
