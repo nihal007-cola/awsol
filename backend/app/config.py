@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret: str = ""  # presence enforced by auth.py, not here
 
+    # SMTP (Gmail by default)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    smtp_from: str = ""
+
     tolerance: float = 0.001
     issue_buffer_percent: float = 1.05
     default_sizes: str = "26,28,30,32,34,36,38,40,42,44,46,48,50,52,54"

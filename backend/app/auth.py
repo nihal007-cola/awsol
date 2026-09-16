@@ -126,3 +126,172 @@ def get_me(current_user: User = Depends(get_current_user)):
         role=current_user.role,
         is_active=current_user.is_active
     )
+
+# ==============================================================
+# PASSWORD RESET FLOW
+# ==============================================================
+
+import secrets
+from .mailer import send_email
+from .models import PasswordResetOTP
+
+OTP_EXPIRY_MINUTES = 10
+OTP_MAX_ATTEMPTS = 5
+RESET_TOKEN_EXPIRY_MINUTES = 10
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyOTPRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+
+class ResetPasswordRequest(BaseModel):
+    reset_token: str
+    new_password: str
+
+
+def _generate_otp() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _hash_otp(otp: str) -> str:
+    return bcrypt.hashpw(otp.encode(), bcrypt.gensalt()).decode()
+
+
+def _check_otp(otp: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(otp.encode(), hashed.encode())
+    except Exception:
+        return False
+
+
+def _create_reset_jwt(user_id: int, email: str) -> str:
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "purpose": "password_reset",
+        "exp": datetime.utcnow() + timedelta(minutes=RESET_TOKEN_EXPIRY_MINUTES),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+@router.post("/forgot-password")
+@login_limiter.limit("5/minute")
+def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    """Send a 6-digit OTP to the email IF the user exists.
+
+    Always returns 200 with the same message — do not leak which emails
+    are registered.
+    """
+    email = body.email.lower()
+    generic = {"success": True, "message": "If that email is registered, an OTP has been sent."}
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not user.is_active:
+        return generic
+
+    # Invalidate any prior unused OTPs for this email.
+    now = datetime.utcnow()
+    db.query(PasswordResetOTP).filter(
+        PasswordResetOTP.email == email,
+        PasswordResetOTP.used_at.is_(None),
+    ).update({"used_at": now})
+
+    otp = _generate_otp()
+    row = PasswordResetOTP(
+        email=email,
+        otp_hash=_hash_otp(otp),
+        expires_at=now + timedelta(minutes=OTP_EXPIRY_MINUTES),
+        attempts=0,
+    )
+    db.add(row)
+    db.commit()
+
+    body_text = (
+        f"Hello {user.full_name or user.email},\n\n"
+        f"Your awsol password reset code is:\n\n"
+        f"    {otp}\n\n"
+        f"This code expires in {OTP_EXPIRY_MINUTES} minutes.\n"
+        f"If you did not request a password reset, ignore this email.\n\n"
+        f"— Sneha Creations ERP"
+    )
+    send_email(email, "awsol password reset code", body_text)
+    return generic
+
+
+@router.post("/verify-otp")
+def verify_otp(
+    body: VerifyOTPRequest,
+    db: Session = Depends(get_db),
+):
+    """Verify the OTP. On success return a short-lived reset token."""
+    email = body.email.lower()
+    otp = (body.otp or "").strip()
+
+    now = datetime.utcnow()
+    row = (
+        db.query(PasswordResetOTP)
+        .filter(
+            PasswordResetOTP.email == email,
+            PasswordResetOTP.used_at.is_(None),
+        )
+        .order_by(PasswordResetOTP.id.desc())
+        .first()
+    )
+
+    if not row:
+        raise HTTPException(status_code=400, detail="No active OTP for this email")
+    if row.expires_at < now:
+        raise HTTPException(status_code=400, detail="OTP expired")
+    if (row.attempts or 0) >= OTP_MAX_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many attempts")
+    if not _check_otp(otp, row.otp_hash):
+        row.attempts = (row.attempts or 0) + 1
+        db.commit()
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=400, detail="User not available")
+
+    row.used_at = now
+    db.commit()
+
+    reset_token = _create_reset_jwt(user.id, user.email)
+    return {"success": True, "reset_token": reset_token}
+
+
+@router.post("/reset-password")
+def reset_password(
+    body: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    """Consume a reset token and update the user's password."""
+    try:
+        payload = jwt.decode(body.reset_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if payload.get("purpose") != "password_reset":
+        raise HTTPException(status_code=400, detail="Invalid reset token")
+
+    if len(body.new_password or "") < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    user = db.query(User).filter(User.id == int(payload["sub"])).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=400, detail="User not available")
+
+    user.password_hash = hash_password(body.new_password)
+    user.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {"success": True, "message": "Password updated. You can now log in."}

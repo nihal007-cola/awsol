@@ -541,3 +541,22 @@ class SequenceCounter(Base):
     name = Column(String(50), primary_key=True)
     value = Column(Integer, nullable=False, default=0)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+# ==============================================================
+# MODULE 20: PASSWORD RESET OTPs
+# ==============================================================
+class PasswordResetOTP(Base):
+    __tablename__ = "password_reset_otps"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(255), nullable=False, index=True)
+    otp_hash = Column(String(255), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    attempts = Column(Integer, default=0)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index('idx_otp_email', 'email'),
+        Index('idx_otp_expires', 'expires_at'),
+    )

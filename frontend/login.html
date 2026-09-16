@@ -112,6 +112,68 @@
         .toast.success { background: rgba(26,122,59,0.92); }
         .toast.error { background: rgba(122,26,26,0.92); }
         .toast.info { background: rgba(26,59,122,0.92); }
+
+        /* Forgot-password modal */
+        .forgot-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            padding: 20px;
+        }
+        .forgot-modal-card {
+            background: rgba(255,255,255,0.97);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px 28px;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            position: relative;
+        }
+        .forgot-close {
+            position: absolute;
+            top: 10px;
+            right: 14px;
+            background: none;
+            border: none;
+            font-size: 26px;
+            cursor: pointer;
+            color: #62748e;
+            line-height: 1;
+        }
+        .forgot-close:hover { color: #0b1b33; }
+        .forgot-muted {
+            font-size: 13px;
+            color: #62748e;
+            margin: 6px 0 16px 0;
+            line-height: 1.5;
+        }
+        .forgot-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #4a5a7a;
+            margin-bottom: 5px;
+        }
+        .forgot-input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 15px;
+            background: rgba(255,255,255,0.7);
+            color: #0b1b33;
+            margin-bottom: 14px;
+        }
+        .forgot-input:focus {
+            outline: none;
+            border-color: #2a6df4;
+            box-shadow: 0 0 0 4px rgba(42,109,244,0.12);
+        }
     </style>
 </head>
 <body>
@@ -154,9 +216,56 @@
             <div class="login-footer">
                 <a href="#" onclick="showToast('Contact admin@sneha.com for access', 'info')">Contact Admin</a>
                 &nbsp;·&nbsp;
-                <a href="#" onclick="showToast('Reset link sent to your email', 'success')">Forgot Password?</a>
+                <a href="#" onclick="openForgotModal(); return false;">Forgot Password?</a>
             </div>
         </div>
+    </div>
+
+    <div id="forgotModal" class="forgot-modal" style="display:none;">
+      <div class="forgot-modal-card">
+        <button class="forgot-close" onclick="closeForgotModal()" type="button">&times;</button>
+
+        <!-- Step 1: email -->
+        <div id="forgotStep1">
+          <h2 style="margin-top:0;">Reset your password</h2>
+          <p class="forgot-muted">Enter the email you use to sign in. We'll send you a 6-digit code.</p>
+          <label class="forgot-label">Email</label>
+          <input id="forgotEmail" type="email" placeholder="you@example.com" class="forgot-input" autocomplete="email">
+          <button type="button" class="btn-login" id="forgotSendBtn" onclick="forgotSendOtp()">
+            <i class="fas fa-paper-plane"></i> Send OTP
+          </button>
+        </div>
+
+        <!-- Step 2: OTP -->
+        <div id="forgotStep2" style="display:none;">
+          <h2 style="margin-top:0;">Enter the code</h2>
+          <p class="forgot-muted">Check <strong id="forgotEmailDisplay"></strong> for a 6-digit code. It expires in 10 minutes.</p>
+          <label class="forgot-label">6-digit code</label>
+          <input id="forgotOtp" type="text" inputmode="numeric" maxlength="6" placeholder="123456" class="forgot-input" style="letter-spacing:6px;text-align:center;font-size:20px;">
+          <button type="button" class="btn-login" id="forgotVerifyBtn" onclick="forgotVerifyOtp()">
+            <i class="fas fa-check"></i> Verify
+          </button>
+          <p class="forgot-muted" style="margin-top:10px;">
+            <a href="#" id="forgotResendLink" onclick="forgotResendOtp(); return false;" style="pointer-events:none;opacity:0.5;">Resend OTP</a>
+            <span id="forgotResendCountdown"></span>
+            &nbsp;·&nbsp;
+            <a href="#" onclick="forgotBackToStep1(); return false;">Use a different email</a>
+          </p>
+        </div>
+
+        <!-- Step 3: new password -->
+        <div id="forgotStep3" style="display:none;">
+          <h2 style="margin-top:0;">Set a new password</h2>
+          <p class="forgot-muted">Choose a password with at least 8 characters.</p>
+          <label class="forgot-label">New password</label>
+          <input id="forgotNewPw" type="password" class="forgot-input" autocomplete="new-password">
+          <label class="forgot-label">Confirm password</label>
+          <input id="forgotNewPw2" type="password" class="forgot-input" autocomplete="new-password">
+          <button type="button" class="btn-login" id="forgotResetBtn" onclick="forgotResetPassword()">
+            <i class="fas fa-lock"></i> Reset Password
+          </button>
+        </div>
+      </div>
     </div>
 
     <div id="toast" class="toast"></div>
@@ -232,7 +341,181 @@
                 }
             }).catch(() => {});
         }
-    </script>
+    
+    // ============ FORGOT PASSWORD FLOW ============
+    let _resetToken = null;
+
+    function openForgotModal() {
+        _resetToken = null;
+        document.getElementById('forgotStep1').style.display = '';
+        document.getElementById('forgotStep2').style.display = 'none';
+        document.getElementById('forgotStep3').style.display = 'none';
+        document.getElementById('forgotEmail').value = '';
+        document.getElementById('forgotOtp').value = '';
+        document.getElementById('forgotNewPw').value = '';
+        document.getElementById('forgotNewPw2').value = '';
+        document.getElementById('forgotModal').style.display = 'flex';
+    }
+
+    function closeForgotModal() {
+        document.getElementById('forgotModal').style.display = 'none';
+    }
+
+    function _setBtnLoading(btn, text) {
+        if (!btn) return;
+        btn.disabled = true;
+        btn._orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + text;
+    }
+    function _restoreBtn(btn) {
+        if (!btn) return;
+        btn.disabled = false;
+        if (btn._orig) btn.innerHTML = btn._orig;
+    }
+
+    async function forgotSendOtp() {
+        const email = (document.getElementById('forgotEmail').value || '').trim().toLowerCase();
+        if (!email || email.indexOf('@') < 0) {
+            showToast('Please enter a valid email', 'error');
+            return;
+        }
+        const btn = document.getElementById('forgotSendBtn');
+        _setBtnLoading(btn, 'Sending…');
+        try {
+            const r = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            if (!r.ok) {
+                const t = await r.text();
+                throw new Error(t || ('HTTP ' + r.status));
+            }
+            document.getElementById('forgotEmailDisplay').textContent = email;
+            document.getElementById('forgotStep1').style.display = 'none';
+            document.getElementById('forgotStep2').style.display = '';
+            document.getElementById('forgotOtp').focus();
+            showToast('If that email is registered, a code has been sent.', 'success');
+            startResendCountdown(30);
+        } catch (e) {
+            showToast('Could not send OTP: ' + e.message, 'error');
+        } finally {
+            _restoreBtn(btn);
+        }
+    }
+
+    async function forgotVerifyOtp() {
+        const email = (document.getElementById('forgotEmailDisplay').textContent || '').trim().toLowerCase();
+        const otp = (document.getElementById('forgotOtp').value || '').trim();
+        if (otp.length !== 6 || !/^[0-9]{6}$/.test(otp)) {
+            showToast('Enter the 6-digit code', 'error');
+            return;
+        }
+        const btn = document.getElementById('forgotVerifyBtn');
+        _setBtnLoading(btn, 'Verifying…');
+        try {
+            const r = await fetch('/api/auth/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp })
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.detail || ('HTTP ' + r.status));
+            _resetToken = data.reset_token;
+            document.getElementById('forgotStep2').style.display = 'none';
+            document.getElementById('forgotStep3').style.display = '';
+            document.getElementById('forgotNewPw').focus();
+        } catch (e) {
+            showToast(e.message, 'error');
+        } finally {
+            _restoreBtn(btn);
+        }
+    }
+
+    let _resendTimer = null;
+    let _resendSeconds = 0;
+
+    function startResendCountdown(seconds) {
+        clearInterval(_resendTimer);
+        _resendSeconds = seconds;
+        const link = document.getElementById('forgotResendLink');
+        const label = document.getElementById('forgotResendCountdown');
+        link.style.pointerEvents = 'none';
+        link.style.opacity = '0.5';
+        const tick = () => {
+            if (_resendSeconds <= 0) {
+                clearInterval(_resendTimer);
+                link.style.pointerEvents = '';
+                link.style.opacity = '1';
+                label.textContent = '';
+                return;
+            }
+            label.textContent = ' (' + _resendSeconds + 's)';
+            _resendSeconds -= 1;
+        };
+        tick();
+        _resendTimer = setInterval(tick, 1000);
+    }
+
+    async function forgotResendOtp() {
+        const email = (document.getElementById('forgotEmailDisplay').textContent || '').trim().toLowerCase();
+        if (!email) return;
+        try {
+            const r = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            showToast('A new code has been sent.', 'success');
+            startResendCountdown(30);
+        } catch (e) {
+            showToast('Could not resend: ' + e.message, 'error');
+        }
+    }
+
+    function forgotBackToStep1() {
+        document.getElementById('forgotStep1').style.display = '';
+        document.getElementById('forgotStep2').style.display = 'none';
+        document.getElementById('forgotStep3').style.display = 'none';
+        document.getElementById('forgotOtp').value = '';
+    }
+
+    async function forgotResetPassword() {
+        const pw1 = document.getElementById('forgotNewPw').value || '';
+        const pw2 = document.getElementById('forgotNewPw2').value || '';
+        if (pw1.length < 8) {
+            showToast('Password must be at least 8 characters', 'error');
+            return;
+        }
+        if (pw1 !== pw2) {
+            showToast('Passwords do not match', 'error');
+            return;
+        }
+        if (!_resetToken) {
+            showToast('Session expired. Start over.', 'error');
+            openForgotModal();
+            return;
+        }
+        const btn = document.getElementById('forgotResetBtn');
+        _setBtnLoading(btn, 'Resetting…');
+        try {
+            const r = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reset_token: _resetToken, new_password: pw1 })
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.detail || ('HTTP ' + r.status));
+            showToast('Password updated. Please log in.', 'success');
+            closeForgotModal();
+        } catch (e) {
+            showToast(e.message, 'error');
+        } finally {
+            _restoreBtn(btn);
+        }
+    }
+</script>
     <script>
     // ============ SESSION MANAGEMENT ============
     const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
