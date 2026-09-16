@@ -153,7 +153,7 @@ def cancel_fg_inspection(data: Dict, db: Session = Depends(get_db), current_user
         
         move_result = crud.move_stage(db, buyer_order_id, 'backward', 'system')
         
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         bo = next((e for e in all_entries if e.buyer_order_id == buyer_order_id and e.activity_type == 'BUYER_ORDER' and e.status == 'COMPLETED'), None)
         now = datetime.utcnow()
         crud.add_ledger_entry(db, {
@@ -351,7 +351,7 @@ def submit_fg_inspection(data: Dict, db: Session = Depends(get_db), current_user
         db.commit()
         
         # Log entry in activity ledger
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_order(db, buyer_order_id)
         bo = next((e for e in all_entries if e.buyer_order_id == buyer_order_id and e.activity_type == 'BUYER_ORDER' and e.status == 'COMPLETED'), None)
         
         # On PASS: upsert FGInventory rows and move the token FORWARD
