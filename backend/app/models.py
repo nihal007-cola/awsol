@@ -524,3 +524,13 @@ class DispatchRecord(Base):
         Index('idx_disp_fg', 'fg_key'),
         Index('idx_disp_invoice', 'invoice_no'),
     )
+
+# ==============================================================
+# MODULE 19: SEQUENCE COUNTERS (concurrency-safe ID generation)
+# ==============================================================
+class SequenceCounter(Base):
+    __tablename__ = "sequence_counters"
+
+    name = Column(String(50), primary_key=True)
+    value = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

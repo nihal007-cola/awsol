@@ -107,7 +107,7 @@ def generate_po_for_supplier(data: Dict, db: Session = Depends(get_db), current_
         excess_percentage = data.get('excess_percentage', 0)
         if not supplier or not selected_items:
             raise ValueError('Supplier and items required')
-        po_token = crud.generate_po_token()
+        po_token = crud.generate_po_token(db)
         po_date = datetime.utcnow()
         supplier_details = crud.get_rmsupplier_details(db, supplier)
 

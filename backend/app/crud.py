@@ -322,10 +322,39 @@ def update_inventory_snapshot(db: Session, updates: List[Dict]):
     db.commit()
 
 
-def generate_po_token() -> str:
+def _next_seq(db: Session, name: str) -> int:
+    """Return the next integer for a named counter, concurrency-safe.
+
+    1. Atomically create the counter row if it does not exist
+       (Postgres: INSERT ... ON CONFLICT DO NOTHING). Safe under
+       concurrent first-use.
+    2. SELECT ... FOR UPDATE to serialize callers on the same counter.
+    3. Increment and flush.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    # Step 1: atomic "create if missing".
+    stmt = pg_insert(models.SequenceCounter.__table__).values(
+        name=name, value=0
+    ).on_conflict_do_nothing(index_elements=["name"])
+    db.execute(stmt)
+
+    # Step 2: lock the row.
+    row = db.query(models.SequenceCounter).filter(
+        models.SequenceCounter.name == name
+    ).with_for_update().one()
+
+    # Step 3: increment.
+    row.value = (row.value or 0) + 1
+    db.flush()
+    return row.value
+
+
+def generate_po_token(db: Session) -> str:
     from datetime import datetime
-    date = datetime.utcnow()
-    return f"PO-{date.strftime('%y%m%d')}-{uuid.uuid4().hex[:3].upper()}"
+    date = datetime.utcnow().strftime('%y%m%d')
+    n = _next_seq(db, f'po_{date}')
+    return f"PO-{date}-{n:03d}"
 
 def get_requirement_key(fg_key: str, size: str, color: str, item_size: str, item_no: str = '') -> str:
     """Generate unique requirement key.
@@ -366,55 +395,15 @@ def get_inventory_snapshot(db: Session, fg_key: Optional[str] = None, requiremen
 # ==================== RM ID GENERATION ====================
 
 def generate_rm_id(db: Session) -> str:
-    """Generate next RM ID in format RM-000001"""
-    from sqlalchemy import func
-    
-    # Get all RM items with IDs starting with 'RM-'
-    items = db.query(models.MasterInventory).filter(
-        models.MasterInventory.item_no.like('RM-%')
-    ).all()
-    
-    max_num = 0
-    for item in items:
-        try:
-            # Extract number from RM-000001 -> 1
-            num = int(item.item_no.replace('RM-', ''))
-            if num > max_num:
-                max_num = num
-        except ValueError:
-            continue
-    
-    next_num = max_num + 1
-    return f"RM-{str(next_num).zfill(6)}"
+    """Generate next RM ID in format RM-000001 (concurrency-safe)."""
+    return f"RM-{_next_seq(db, 'rm_id'):06d}"
 
 def generate_fg_serial(db: Session) -> str:
-    """Generate a new FG serial number"""
+    """Generate a new FG serial number in format FG-YYMMDD-NNN (concurrency-safe)."""
     from datetime import datetime
-    date = datetime.utcnow()
-    prefix = f"FG-{date.strftime('%y%m%d')}"
-    
-    fg_keys = db.query(models.ActivityLedger.fg_key).filter(
-        models.ActivityLedger.fg_key.like(f"{prefix}-%")
-    ).distinct().all()
-    
-    serials = []
-    for row in fg_keys:
-        key = row[0]
-        base_key = key.split('|')[0]
-        parts = base_key.split('-')
-        if len(parts) == 3:
-            try:
-                serials.append(int(parts[2]))
-            except ValueError:
-                pass
-    
-    if serials:
-        last_serial = max(serials)
-        new_serial = last_serial + 1
-    else:
-        new_serial = 1
-    
-    return f"{prefix}-{str(new_serial).zfill(3)}"
+    date = datetime.utcnow().strftime('%y%m%d')
+    n = _next_seq(db, f'fg_{date}')
+    return f"FG-{date}-{n:03d}"
 
 # ==============================================================
 # WORKFLOW TOKEN - Stage + Version + Locking Helpers
