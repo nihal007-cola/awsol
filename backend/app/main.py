@@ -44,6 +44,23 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    import time
+    start = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start) * 1000.0
+    logger.info(
+        "%s %s -> %s (%.1fms)",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
+    return response
+
+
 app.include_router(auth.router)
 app.include_router(master_inventory.router)  # Specific routes first
 app.include_router(master_data.router)
