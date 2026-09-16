@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas, models
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 import json
 import logging
 
@@ -431,7 +433,7 @@ def print_po_html(po_token: str, db: Session = Depends(get_db)):
     return HTMLResponse(html)
 
 @router.post("/save")
-def save_grn(data: schemas.GRNSaveRequest, db: Session = Depends(get_db)):
+def save_grn(data: schemas.GRNSaveRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         po_token = crud.clean_key_exact(data.po_token)
         invoice_no = data.invoice_no or ''
@@ -725,7 +727,7 @@ def save_grn(data: schemas.GRNSaveRequest, db: Session = Depends(get_db)):
         return {'success': False, 'message': str(e)}
 
 @router.post("/receive")
-def receive_po(data: Dict, db: Session = Depends(get_db)):
+def receive_po(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Mark a PO as RECEIVED after user enters invoice no, received date, and quantities.
     Creates GRN entries for each item, updates inventory snapshot.
@@ -1094,7 +1096,7 @@ def receive_po(data: Dict, db: Session = Depends(get_db)):
         return {'success': False, 'message': str(e)}
 
 @router.post("/close-po")
-def close_po(data: Dict, db: Session = Depends(get_db)):
+def close_po(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Close a PO's GRN without adding new quantity.
 
@@ -1332,7 +1334,7 @@ def close_po(data: Dict, db: Session = Depends(get_db)):
 
 
 @router.post("/cancel")
-def cancel_grn(data: Dict, db: Session = Depends(get_db)):
+def cancel_grn(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Cancel GRN for a PO. Behavior:
       - Reverse grnDelta on inventory snapshot.
@@ -1582,7 +1584,7 @@ def cancel_grn(data: Dict, db: Session = Depends(get_db)):
         return {'success': False, 'message': str(e)}
 
 @router.post("/cancel-buyer-order")
-def cancel_grn_buyer_order(data: Dict, db: Session = Depends(get_db)):
+def cancel_grn_buyer_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Pre-receive exit for a buyer order in GRN stage.
 

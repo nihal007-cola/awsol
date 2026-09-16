@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas, models
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 import json
 import logging
 
@@ -92,7 +94,7 @@ def get_rm_orders(db: Session = Depends(get_db)):
     return result
 
 @router.post("/generate-po")
-def generate_po_for_supplier(data: Dict, db: Session = Depends(get_db)):
+def generate_po_for_supplier(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         all_entries = crud.get_ledger_entries(db)
         supplier = crud.clean_key_exact(data.get('supplier', ''))
@@ -441,7 +443,7 @@ def generate_po_html(po_token, supplier_alias, supplier_details, items, grand_to
     return html
 
 @router.post("/save")
-def save_po(data: Dict, db: Session = Depends(get_db)):
+def save_po(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         po_token = crud.clean_key_exact(data.get('po_token', ''))
         all_entries = crud.get_ledger_entries(db)
@@ -473,7 +475,7 @@ def save_po(data: Dict, db: Session = Depends(get_db)):
         return {'success': False, 'message': str(e)}
 
 @router.post("/process")
-def process_po(data: Dict, db: Session = Depends(get_db)):
+def process_po(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         po_token = crud.clean_key_exact(data.get('po_token', ''))
         if not po_token:
@@ -578,7 +580,7 @@ def process_po(data: Dict, db: Session = Depends(get_db)):
         return {'success': False, 'message': str(e)}
 
 @router.post("/cancel")
-def cancel_rm_order(data: Dict, db: Session = Depends(get_db)):
+def cancel_rm_order(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         po_token = crud.clean_key_exact(data.get('po_token', ''))
         if not po_token:
@@ -715,7 +717,7 @@ def get_rm_order_materials(order_id: str, db: Session = Depends(get_db)):
     }
 
 @router.post("/cancel-buyer-order")
-def cancel_rm_order_for_buyer(data: Dict, db: Session = Depends(get_db)):
+def cancel_rm_order_for_buyer(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Cancel the RM Order stage for a whole buyer order:
     - Cancel all non-cancelled RM_ORDER entries for this buyer order

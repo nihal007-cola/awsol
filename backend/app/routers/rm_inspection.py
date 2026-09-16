@@ -5,6 +5,8 @@ from datetime import datetime
 from .. import crud, schemas
 from ..database import get_db
 from ..config import settings
+from ..auth import get_current_user
+from ..models import User
 from ..models import InspectionRecord, ActivityLedger, StageTransition
 import uuid
 
@@ -135,7 +137,7 @@ def get_rm_inspections(db: Session = Depends(get_db)):
     return result
 
 @router.post("/save")
-def save_rm_inspection(data: Dict, db: Session = Depends(get_db)):
+def save_rm_inspection(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         po_token = data.get('po_token', '')
         item = data.get('item', '')
@@ -168,7 +170,7 @@ def save_rm_inspection(data: Dict, db: Session = Depends(get_db)):
         return {"success": False, "message": str(e)}
 
 @router.post("/pass")
-def pass_rm_inspection(data: Dict, db: Session = Depends(get_db)):
+def pass_rm_inspection(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         po_token = data.get('po_token', '')
         if not po_token:
@@ -326,7 +328,7 @@ def pass_rm_inspection(data: Dict, db: Session = Depends(get_db)):
         return {'success': False, 'message': str(e)}
 
 @router.post("/fail")
-def fail_rm_inspection(data: Dict, db: Session = Depends(get_db)):
+def fail_rm_inspection(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         po_token = data.get('po_token', '')
         if not po_token:
@@ -402,7 +404,7 @@ def fail_rm_inspection(data: Dict, db: Session = Depends(get_db)):
         return {'success': False, 'message': str(e)}
 
 @router.post("/set-observation")
-def set_rm_inspection_observation(data: Dict, db: Session = Depends(get_db)):
+def set_rm_inspection_observation(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Set / update the free-text observation (remarks) for a PO's latest RM
     Inspection record. Does NOT change status. If no inspection row exists
@@ -455,7 +457,7 @@ def set_rm_inspection_observation(data: Dict, db: Session = Depends(get_db)):
 
 
 @router.post("/cancel")
-def cancel_rm_inspection(data: Dict, db: Session = Depends(get_db)):
+def cancel_rm_inspection(data: Dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     DEPRECATED.
 
