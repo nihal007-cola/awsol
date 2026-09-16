@@ -788,15 +788,22 @@ def receive_po(data: Dict, db: Session = Depends(get_db), current_user: User = D
         # so we can enforce the 5% over-receipt cap server-side. Sum of all
         # live (non-CANCELLED) GRN rows for this poToken + requirementKey.
         def _prior_received_for(po, req_key):
-            total = 0.0
-            for e in all_entries:
-                if (e.activity_type == 'GRN'
-                    and e.buyer_order_id == buyer_order_id
-                    and (e.status or '').upper() != 'CANCELLED'
-                    and (e.extra_data or {}).get('poToken') == po
-                    and (e.extra_data or {}).get('requirementKey') == req_key):
-                    total += float(e.qty or 0)
-            return total
+            """Sum already-received qty for a (poToken, requirementKey) from the
+            ledger. Pushed to SQL via the JSONB expression index (idx_ledger_po_token)
+            so this is O(1) per line, not O(N) over the whole ledger."""
+            from sqlalchemy import func as _sqlfunc
+            total = (
+                db.query(_sqlfunc.coalesce(_sqlfunc.sum(models.ActivityLedger.qty), 0))
+                .filter(
+                    models.ActivityLedger.activity_type == 'GRN',
+                    models.ActivityLedger.buyer_order_id == buyer_order_id,
+                    models.ActivityLedger.status != 'CANCELLED',
+                    models.ActivityLedger.extra_data['poToken'].astext == po,
+                    models.ActivityLedger.extra_data['requirementKey'].astext == req_key,
+                )
+                .scalar()
+            )
+            return float(total or 0)
 
         # Per-PO total cap: sum of ALL line received must not exceed sum of
         # ALL line ordered * 1.05. Track running totals across this request too.
