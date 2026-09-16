@@ -150,7 +150,7 @@ def save_rm_inspection(data: Dict, db: Session = Depends(get_db), current_user: 
 
         # Resolve the real buyer_order_id for this PO. The FK column must
         # hold a buyer order ID, not the PO token.
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_po(db, po_token)
         rm_lookup = next((e for e in all_entries
                           if e.activity_type == 'RM_ORDER'
                           and e.extra_data
@@ -191,7 +191,7 @@ def pass_rm_inspection(data: Dict, db: Session = Depends(get_db), current_user: 
         # Look up the buyer_order_id for this PO from the ledger.
         # We must NOT store po_token in the buyer_order_id column — it is a
         # real FK to the buyer order and is used by the scoped passed-PO query.
-        all_entries_lookup = crud.get_ledger_entries(db)
+        all_entries_lookup = crud.get_ledger_entries_for_po(db, po_token)
         rm_order_lookup = next((e for e in all_entries_lookup
                                 if e.activity_type == 'RM_ORDER'
                                 and e.extra_data
@@ -260,7 +260,7 @@ def pass_rm_inspection(data: Dict, db: Session = Depends(get_db), current_user: 
         # ==============================================================
         
         # Find the buyer_order_id for this PO
-        all_entries = crud.get_ledger_entries(db)
+        all_entries = crud.get_ledger_entries_for_po(db, po_token)
         rm_order_entry = next((e for e in all_entries 
                               if e.activity_type == 'RM_ORDER' 
                               and e.extra_data 
@@ -347,7 +347,7 @@ def fail_rm_inspection(data: Dict, db: Session = Depends(get_db), current_user: 
             return {"success": False, "message": "PO Token is required"}
         
         # Resolve the true buyer_order_id for this PO (see /pass for rationale).
-        all_entries_lookup = crud.get_ledger_entries(db)
+        all_entries_lookup = crud.get_ledger_entries_for_po(db, po_token)
         rm_order_lookup = next((e for e in all_entries_lookup
                                 if e.activity_type == 'RM_ORDER'
                                 and e.extra_data
@@ -429,7 +429,7 @@ def set_rm_inspection_observation(data: Dict, db: Session = Depends(get_db), cur
             return {"success": False, "message": "PO Token is required"}
 
         # Resolve buyer_order_id for this PO
-        all_entries_lookup = crud.get_ledger_entries(db)
+        all_entries_lookup = crud.get_ledger_entries_for_po(db, po_token)
         rm_order_lookup = next((e for e in all_entries_lookup
                                 if e.activity_type == 'RM_ORDER'
                                 and e.extra_data
