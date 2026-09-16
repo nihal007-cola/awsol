@@ -157,7 +157,7 @@ def cancel_whole_order(data: Dict, db: Session = Depends(get_db), current_user: 
         if not fg_order_serial:
             raise ValueError('FG Order Serial is required')
         
-        entries = crud.get_ledger_entries(db)
+        entries = crud.get_ledger_entries_for_order(db, fg_order_serial)
         fg_keys = []
         
         for entry in entries:
